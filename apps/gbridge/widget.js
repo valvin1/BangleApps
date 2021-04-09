@@ -13,6 +13,7 @@
   var currentSteps = 0, lastSentSteps=0;
   var activityInterval;
   var hrmTimeout;
+  var previousAccurateHrm;
 
   function settings() {
     let settings = require('Storage').readJSON("gbridge.json", true) || {};
@@ -132,9 +133,9 @@
         hrmTimeout = undefined;
       } else {
         // else trigger it manually every so often
-        hrmTimeout = 5;
+        hrmTimeout = 10;
         activityInterval = setInterval(function() {
-          hrmTimeout = 5;
+          hrmTimeout = 10;
           Bangle.setHRMPower(1);
         }, interval*1000);
       }
@@ -262,12 +263,29 @@
     currentSteps = s;
   });
   Bangle.on('HRM',function(hrm) {
-    var ok = hrm.confidence>80;
+    //Bluetooth.println("HRM: " + hrm.bpm + "("+hrm.confidence + "%) tries left: " + hrmTimeout);
+    var ok = false;
+    if (hrm.confidence > 80){
+      if(previousAccurateHrm == undefined){
+        previousAccurateHrm = hrm.bpm;
+        //Bluetooth.println("found a first reliable hrm: " + hrm.bpm);
+      }
+      else{
+        //Bluetooth.println("found a second reliable hrm: " + hrm.bpm);
+        if (Math.abs(hrm.bpm - previousAccurateHrm) < 20)
+          ok = true;
+        else{
+          //Bluetooth.println("Too much diff between value: " + hrm.bpm + " / " + previousAccurateHrm);
+          previousAccurateHrm = hrm.bpm;
+        }
+      }
+    }
     if (hrmTimeout!==undefined) hrmTimeout--;
     if (ok || hrmTimeout<=0) {
       if (hrmTimeout!==undefined)
         Bangle.setHRMPower(0);
-      sendActivity(hrm.confidence>20 ? hrm.bpm : -1);
+      previousAccurateHrm = undefined;
+      sendActivity(ok ? hrm.bpm : -1);
     }
   });
   handleActivityEvent({}); // kicks off activity reporting
