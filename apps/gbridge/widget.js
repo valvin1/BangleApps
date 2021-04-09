@@ -265,7 +265,7 @@
   Bangle.on('HRM',function(hrm) {
     //Bluetooth.println("HRM: " + hrm.bpm + "("+hrm.confidence + "%) tries left: " + hrmTimeout);
     var ok = false;
-    if (hrm.confidence > 80){
+    if (hrm.confidence > 80 && (hrm.bpm != 200 && hrm.bpm > 50)){
       if(previousAccurateHrm == undefined){
         previousAccurateHrm = hrm.bpm;
         //Bluetooth.println("found a first reliable hrm: " + hrm.bpm);
