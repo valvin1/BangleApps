@@ -14,6 +14,8 @@
   var activityInterval;
   var hrmTimeout;
   var previousAccurateHrm;
+  var previousStepsCounter;
+  var useStepWidget = true;
 
   function settings() {
     let settings = require('Storage').readJSON("gbridge.json", true) || {};
@@ -107,6 +109,17 @@
     if (state.music === "pause") {
       require("notify").hide("music");
     }
+  }
+
+  function getStepsFromWidget(){
+      let steps = -1;
+      // only attempt to get steps if activepedom is loaded
+      if (WIDGETS.activepedom !== undefined) {
+        steps = WIDGETS.activepedom.getSteps();
+      } else if (WIDGETS.wpedom !== undefined) {
+        steps = WIDGETS.wpedom.getSteps();
+      }
+      return steps;
   }
 
   function handleActivityEvent(event) {
@@ -247,8 +260,17 @@
 
   // Send a summary of activity to Gadgetbridge
   function sendActivity(hrm) {
-    var steps = currentSteps - lastSentSteps;
-    lastSentSteps = 0;
+    var steps = 0;
+    if(useStepWidget){
+      var currentStepsCounter = getStepsFromWidget();
+      steps = previousStepsCounter !== undefined ? currentStepsCounter - previousStepsCounter : 0;
+      previousStepsCounter = currentStepsCounter
+      //Bluetooth.println("Calculate " + steps + " steps");
+    }
+    else {
+      steps = currentSteps - lastSentSteps;
+      lastSentSteps = 0;
+    }
     gbSend({ t: "act", stp: steps, hrm:hrm });
   }
 
@@ -256,12 +278,19 @@
   NRF.on("connect", () => setTimeout(sendBattery, 2000));
   setInterval(sendBattery, 10*60*1000);
   sendBattery();
-  // Activity monitor
-  Bangle.on("step", s => {
-    if (!lastSentSteps)
-      lastSentSteps = s-1;
-    currentSteps = s;
-  });
+  if (useStepWidget) {
+    if (previousStepsCounter == undefined)
+      previousStepsCounter = getStepsFromWidget();
+      //Bluetooth.println("Init steps with " + previousStepsCounter);
+  }
+  else {
+    // Activity monitor
+    Bangle.on("step", s => {
+      if (!lastSentSteps)
+        lastSentSteps = s - 1;
+      currentSteps = s;
+    });
+  }
   Bangle.on('HRM',function(hrm) {
     //Bluetooth.println("HRM: " + hrm.bpm + "("+hrm.confidence + "%) tries left: " + hrmTimeout);
     var ok = false;
